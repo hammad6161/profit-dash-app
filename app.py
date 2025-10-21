@@ -1,5 +1,8 @@
-import os
+import os  # Make sure this is at the top
+# ... all your other imports ...
 
+app = Dash(__name__)
+server = app.server  # <-- MAKE SURE THIS LINE IS HERE!
 import random
 import numpy as np
 import pandas as pd
