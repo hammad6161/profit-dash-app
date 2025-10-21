@@ -1,17 +1,16 @@
-import os  # Make sure this is at the top
-# ... all your other imports ...
-
-app = Dash(__name__)
-server = app.server  # <-- MAKE SURE THIS LINE IS HERE!
 import random
 import numpy as np
 import pandas as pd
 from dash import Dash, html, dcc, Input, Output, State
 import plotly.express as px
+import os
 
-
+# --- APP INITIALIZATION ---
+# Define the app and the server variable right after the imports.
 app = Dash(__name__)
+server = app.server
 
+# --- APP LAYOUT ---
 app.layout = html.Div([
     html.H1("Profit After Tax Simulation Dashboard", style={'textAlign': 'center'}),
 
@@ -64,9 +63,8 @@ app.layout = html.Div([
     # --- GRAPHS ---
     html.Div([
         dcc.Graph(id='histogram', style={'width': '50%'}),
-        dcc.Graph(id='scurve-chart', style={'width': '50%'})  # NEW: S-Curve Graph
+        dcc.Graph(id='scurve-chart', style={'width': '50%'})
     ], style={'display': 'flex'})
-
 ])
 
 
@@ -74,7 +72,7 @@ app.layout = html.Div([
 @app.callback(
     [Output('results-stats', 'children'),
      Output('histogram', 'figure'),
-     Output('scurve-chart', 'figure')],  # NEW: Added S-Curve output
+     Output('scurve-chart', 'figure')],
     [Input('run_btn', 'n_clicks')],
     [State('sp_min', 'value'),
      State('sp_max', 'value'),
@@ -86,44 +84,33 @@ app.layout = html.Div([
      State('n_sim', 'value')]
 )
 def simulate_profit(n_clicks, sp_min, sp_max, cost_mean, cost_std, vol_min, vol_mode, vol_max, n_sim):
-    # Don't run until the button is clicked
     if n_clicks == 0:
-        # Return empty figures for both graphs
         return "Click 'Run Simulation' to see the results.", px.Figure(), px.Figure()
 
-    # --- 1. Run Simulation ---
     profits = []
     n_sim_int = int(n_sim)
     for _ in range(n_sim_int):
         sales_price = random.uniform(sp_min, sp_max)
         cost = random.gauss(cost_mean, cost_std)
         sales_volume = random.triangular(vol_min, vol_max, vol_mode)
-        # Discrete Tax: 80% chance 0%, 20% chance 30%
         tax_rate = np.random.choice([0, 0.3], p=[0.8, 0.2])
-
         profit = (sales_price - cost) * sales_volume * (1 - tax_rate)
         profits.append(profit)
 
-    # --- 2. Calculate Statistics (with Percentiles) ---
     mean_val = np.mean(profits)
     median_val = np.median(profits)
     std_val = np.std(profits)
     min_val = np.min(profits)
     max_val = np.max(profits)
-
-    # NEW: Calculate Percentiles
     p10 = np.percentile(profits, 10)
     p25 = np.percentile(profits, 25)
     p75 = np.percentile(profits, 75)
     p90 = np.percentile(profits, 90)
-
     loss_count = sum(1 for p in profits if p < 0)
     prob_loss = (loss_count / n_sim_int) * 100
 
-    # --- 3. Format Statistics Output (Updated) ---
     stats_children = [
         html.H3("Profit After Tax Statistics"),
-        # Using flexbox to create columns
         html.Div([
             html.Div([
                 html.P(f"Mean: ${mean_val:,.2f}"),
@@ -131,42 +118,36 @@ def simulate_profit(n_clicks, sp_min, sp_max, cost_mean, cost_std, vol_min, vol_
                 html.P(f"Std. Dev: ${std_val:,.2f}"),
                 html.P(f"Prob. of Loss: {prob_loss:.2f}%"),
             ], style={'width': '33%', 'textAlign': 'left', 'paddingLeft': '5%'}),
-
             html.Div([
                 html.P(f"Min: ${min_val:,.2f}"),
                 html.P(f"10th Percentile: ${p10:,.2f}"),
                 html.P(f"25th Percentile: ${p25:,.2f}"),
             ], style={'width': '33%', 'textAlign': 'left'}),
-
             html.Div([
                 html.P(f"Max: ${max_val:,.2f}"),
                 html.P(f"90th Percentile: ${p90:,.2f}"),
                 html.P(f"75th Percentile: ${p75:,.2f}"),
             ], style={'width': '33%', 'textAlign': 'left'}),
-
         ], style={'display': 'flex', 'justifyContent': 'center'})
     ]
 
-    # --- 4. Create Histogram Figure ---
     df = pd.DataFrame(profits, columns=['Profit'])
     fig_hist = px.histogram(df, x='Profit', nbins=50, title='Profit After Tax Distribution')
     fig_hist.update_layout(bargap=0.1)
 
-    # --- 5. Create S-Curve Figure (NEW) ---
     sorted_profits = np.sort(profits)
-    y_vals = np.arange(1, n_sim_int + 1) / n_sim_int  # Cumulative probability
+    y_vals = np.arange(1, n_sim_int + 1) / n_sim_int
 
     fig_scurve = px.line(x=sorted_profits, y=y_vals, title='Cumulative Probability (S-Curve)')
     fig_scurve.update_layout(
         xaxis_title='Profit After Tax',
         yaxis_title='Cumulative Probability',
-        yaxis_tickformat='.0%'  # Format Y-axis as percentage
+        yaxis_tickformat='.0%'
     )
 
     return stats_children, fig_hist, fig_scurve
 
 
-# --- RUN THE APP ---
-
+# --- RUN THE APP (for local testing only) ---
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8050, debug=False)
+    app.run(debug=True)
